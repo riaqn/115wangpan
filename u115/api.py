@@ -6,6 +6,7 @@ import inspect
 import json
 import logging
 import os
+import binascii
 import re
 import requests
 import time
@@ -418,11 +419,11 @@ class API(object):
 
         return self._load_tasks(count)
 
-    def add_task_bt(self, filename, select=False):
+    def add_task_bt(self, file, select=False):
         """
         Add a new BT task
 
-        :param str filename: path to torrent file to upload
+        :param obj file: torrent file to upload
         :param bool select: whether to select files in the torrent.
 
             * True: it returns the opened torrent (:class:`.Torrent`) and
@@ -431,8 +432,7 @@ class API(object):
             * False: it will submit the torrent with default selected files
 
         """
-        filename = eval_path(filename)
-        u = self.upload(filename, self.torrents_directory)
+        u = self.upload(file, self.torrents_directory)
         t = self._load_torrent(u)
         if select:
             return t
@@ -462,22 +462,24 @@ class API(object):
             res['used'] = humanize.naturalsize(res['used'], binary=True)
         return res
 
-    def upload(self, filename, directory=None):
+    def upload(self, file, directory=None):
         """
-        Upload a file ``filename`` to ``directory``
+        Upload a file ``file`` to ``directory``
 
-        :param str filename: path to the file to upload
+        :param obj file: the file to upload
         :param directory: destionation :class:`.Directory`, defaults to
             :attribute:`.API.downloads_directory` if None
         :return: the uploaded file
         :rtype: :class:`.File`
         """
-        filename = eval_path(filename)
+        if isinstance(file, str):
+            file = open(file, 'rb')
+        
         if directory is None:
             directory = self.downloads_directory
 
         # First request
-        res1 = self._req_upload(filename, directory)
+        res1 = self._req_upload(file, directory)
         data1 = res1['data']
         file_id = data1['file_id']
 
@@ -926,16 +928,19 @@ class API(object):
         res = self.http.send(req)
         return res.content['1']
 
-    def _req_upload(self, filename, directory):
-        """Raw request to upload a file ``filename``"""
+    def _req_upload(self, file, directory):
+        """Raw request to upload a file ``file``"""
         self._upload_url = self._load_upload_url()
         self.http.get('http://upload.115.com/crossdomain.xml')
-        b = os.path.basename(filename)
+        if hasattr(file, 'name'):
+            b = os.path.basename(file.name)
+        else:
+            b = binascii.b2a_hex(os.urandom(16))
         target = 'U_1_' + str(directory.cid)
         files = {
             'Filename': ('', quote(b), ''),
             'target': ('', target, ''),
-            'Filedata': (quote(b), open(filename, 'rb'), ''),
+            'Filedata': (quote(b), file, ''),
             'Upload': ('', 'Submit Query', ''),
         }
         req = Request(method='POST', url=self._upload_url, files=files)
