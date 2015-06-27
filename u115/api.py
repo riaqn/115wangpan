@@ -709,7 +709,7 @@ class API(object):
         else:
             msg = res.content.get('error_msg')
             self.logger.error(msg)
-            raise RequestFailure('Failed to create new task.')
+            raise RequestFailure(msg)
 
     def _req_lixian_add_task_url(self, target_url):
 
@@ -729,7 +729,7 @@ class API(object):
         else:
             msg = res.content.get('error_msg')
             self.logger.error(msg)
-            raise RequestFailure('Failed to create new task.')
+            raise RequestFailure(msg)
 
     def _req_lixian_task_del(self, t):
 
