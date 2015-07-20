@@ -9,7 +9,7 @@ import os
 import sys
 from u115 import API, File, Directory, Task
 from u115 import __version__ as VERSION
-from u115.utils import mkdir_p, eval_path, PY3
+from u115.utils import mkdir_p, eval_path, PY3, utf8_encode
 from u115.conf import COOKIES_FILENAME
 from u115 import conf
 from homura import download
@@ -34,6 +34,14 @@ DRY_RUN = False
 FLAT = False
 SAVE_COOKIES = False
 CLI_API = None
+
+
+def print_msg(msg):
+    """Print UTF-8 encode byte-string"""
+    if not PY3:
+        print(utf8_encode(msg))
+    else:
+        print(msg)
 
 
 def fix_argv():
@@ -64,6 +72,8 @@ def parse_args():
     pu = subparsers.add_parser('up')
     pd.add_argument('-f', '--flat', action='store_true',
                     help="flatten directory structure")
+    pd.add_argument('-F', '--files-only', action='store_true',
+                    help="show files only")
     pd.add_argument('entry_num', nargs='?', help='entry number',
                     type=int)
     pd.add_argument(
@@ -94,6 +104,10 @@ def parse_args():
                 raise parser.error('Cannot list entries of tasks.')
             if args.entry_num <= 0:
                 msg = 'Entry number must be a positive integer.'
+                raise parser.error(msg)
+        if args.entry_num is not None and args.sub_num is not None:
+            if args.files_only is True:
+                msg = 'Cannot specify sub-entries with --files-only option.'
                 raise parser.error(msg)
         if args.sub_num is not None:
             args.sub_num = parse_sub_num(args.sub_num, parser)
@@ -130,12 +144,13 @@ def init_api(username, password, section):
 
 
 def get_entries(entry_num, sub_num,
-                count, sub_count, list_tasks=False):
+                count, sub_count, list_tasks=False, files_only=False):
     api = CLI_API
+    show_dir = not files_only
     if list_tasks is True:
-        entries = api.get_tasks(count)
+        entries = api.get_tasks(count=count)
     else:
-        entries = api.downloads_directory.list(count)
+        entries = api.downloads_directory.list(count=count, show_dir=show_dir)
     # List all entries
     if entry_num is None:
         for k, entry in enumerate(entries, start=1):
@@ -170,7 +185,7 @@ def get_entries(entry_num, sub_num,
         if not FLAT:
             directory = entry.name
             if DRY_RUN:
-                print('DRY RUN: creating directory "%s"...' % directory)
+                print_msg('DRY RUN: creating directory "%s"...' % directory)
             else:
                 mkdir_p(directory)
         if sub_num == '*':
@@ -232,7 +247,7 @@ def download_file(f, path=None):
             else:
                 dpath = os.path.join(path, f.name)
             if DRY_RUN:
-                print('DRY RUN: creating directory "%s"...' % dpath)
+                print_msg('DRY RUN: creating directory "%s"...' % dpath)
             else:
                 mkdir_p(dpath)
         # Here we list all entries (f.count)
@@ -349,7 +364,7 @@ def main():
         DRY_RUN = args.dry_run
         FLAT = args.flat
         get_entries(args.entry_num, args.sub_num, args.count, args.sub_count,
-                    args.tasks)
+                    args.tasks, args.files_only)
     elif args.subparser_name == 'up':
         add_new_task(args)
 
